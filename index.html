@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Password Protect Files</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 500px;
+            margin: 20px auto;
+            padding: 20px;
+            background-color: #f0f2f5;
+        }
+        .container {
+            background: white;
+            padding: 25px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .input-group {
+            margin-bottom: 20px;
+        }
+        input[type="file"], 
+        input[type="password"] {
+            width: 100%;
+            padding: 12px;
+            margin: 8px 0;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+        button {
+            width: 100%;
+            background-color: #1877f2;
+            color: white;
+            padding: 14px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: bold;
+        }
+        button:hover {
+            background-color: #166fe5;
+        }
+        h2 {
+            color: #1d2129;
+            text-align: center;
+            margin-bottom: 25px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>🔒 Image File Password Protector</h2>
+        <div class="input-group">
+            <input type="file" id="fileInput" accept=".pdf,image/*">
+        </div>
+        <div class="input-group">
+            <input type="password" id="passwordInput" placeholder="Enter password">
+        </div>
+        <button onclick="protectFile()">Protect and Download</button>
+    </div>
+
+    <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@zip.js/zip.js@2.6.41/dist/zip.min.js"></script>
+    <script>
+        async function protectFile() {
+            const fileInput = document.getElementById('fileInput');
+            const passwordInput = document.getElementById('passwordInput');
+            const file = fileInput.files[0];
+            const password = passwordInput.value;
+
+            if (!file || !password) {
+                alert('❗ Please select a file and enter a password.');
+                return;
+            }
+
+            try {
+                if (file.type === 'application/pdf') {
+                    // PDF Encryption
+                    const pdfData = await file.arrayBuffer();
+                    const pdfDoc = await PDFLib.PDFDocument.load(pdfData);
+                    const encryptedPdfBytes = await pdfDoc.save({
+                        userPassword: password,
+                        ownerPassword: password,
+                        permissions: {
+                            printing: PDFLib.PrintingAllowed.HIGH_RESOLUTION,
+                            modifying: false,
+                            copying: false,
+                        },
+                    });
+                    
+                    this.downloadFile(encryptedPdfBytes, 'protected_' + file.name, 'application/pdf');
+                    
+                } else if (file.type.startsWith('image/')) {
+                    // Image ZIP Encryption
+                    const zipWriter = new zip.ZipWriter(new zip.BlobWriter('application/zip'), {
+                        password: password,
+                        encryptionStrength: 3 // AES-256 Encryption
+                    });
+                    
+                    await zipWriter.add(file.name, new zip.BlobReader(file));
+                    const zipBlob = await zipWriter.close();
+                    
+                    this.downloadFile(zipBlob, 'protected_' + file.name.replace(/\.[^/.]+$/, "") + '.zip', 'application/zip');
+                    
+                } else {
+                    alert('⚠️ Unsupported file type. Please select a PDF or image.');
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                alert('❌ An error occurred. Please try again.');
+            }
+        }
+
+        function downloadFile(data, filename, mimeType) {
+            const blob = new Blob([data], { type: mimeType });
+            const downloadLink = document.createElement('a');
+            downloadLink.href = URL.createObjectURL(blob);
+            downloadLink.download = filename;
+            document.body.appendChild(downloadLink);
+            downloadLink.click();
+            document.body.removeChild(downloadLink);
+            URL.revokeObjectURL(downloadLink.href);
+        }
+    </script>
+</body>
+</html>
